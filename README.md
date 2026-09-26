@@ -96,7 +96,7 @@ React webview ←─Tauri IPC─→ Rust core ──spawn──> yt-dlp + ffmpeg
 | `frontend/src/` | React app, services, worker, caption formatter, SRT generator |
 | `src-tauri/src/` | Rust commands, SQLite store, sidecar wrappers, event emitter |
 | `src-tauri/binaries/` | Bundled `yt-dlp` / `ffmpeg` / `ffprobe` per target triple |
-| `src-tauri/icons/` | Generated app icons |
+| `src-tauri/icons/` | Generated app icons from `src-tauri/app-icon.svg` |
 | `src-tauri/tauri.conf.json` | Bundle config, sidecar registration, permissions |
 
 ## License

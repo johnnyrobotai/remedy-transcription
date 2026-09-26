@@ -117,7 +117,11 @@ fn extract_youtube_id(url: &str) -> Result<String, String> {
     let path = parsed.path();
 
     let id = if host == "youtu.be" || host == "www.youtu.be" {
-        path.trim_start_matches('/').split('/').next().unwrap_or("").to_string()
+        path.trim_start_matches('/')
+            .split('/')
+            .next()
+            .unwrap_or("")
+            .to_string()
     } else if host.contains("youtube.com") {
         if path == "/watch" {
             parsed
@@ -142,12 +146,12 @@ fn extract_youtube_id(url: &str) -> Result<String, String> {
 
 fn audio_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    Ok(dir.join("audio"))
+    Ok(crate::paths::audio_dir(&dir))
 }
 
 fn downloads_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    Ok(dir.join("downloads"))
+    Ok(crate::paths::downloads_dir(&dir))
 }
 
 #[tauri::command]
@@ -390,16 +394,17 @@ async fn prepare_youtube_audio(
 }
 
 async fn run_yt_dlp_dump_json(app: &AppHandle, url: &str) -> Result<serde_json::Value, String> {
-    let handle = spawn_sidecar(app, "yt-dlp", &["-J", "--no-warnings", "--quiet", url], None)
-        .map_err(|e| e.to_string())?;
+    let handle = spawn_sidecar(
+        app,
+        "yt-dlp",
+        &["-J", "--no-warnings", "--quiet", url],
+        None,
+    )
+    .map_err(|e| e.to_string())?;
     collect_json_output(handle).await
 }
 
-async fn run_yt_dlp_download(
-    app: &AppHandle,
-    url: &str,
-    template: &Path,
-) -> Result<(), String> {
+async fn run_yt_dlp_download(app: &AppHandle, url: &str, template: &Path) -> Result<(), String> {
     let template_str = template.to_string_lossy().to_string();
     let handle = spawn_sidecar(
         app,
@@ -424,11 +429,7 @@ async fn run_yt_dlp_download(
     drain_until_exit(handle).await
 }
 
-async fn run_ffmpeg_extract(
-    app: &AppHandle,
-    input: &Path,
-    output: &Path,
-) -> Result<(), String> {
+async fn run_ffmpeg_extract(app: &AppHandle, input: &Path, output: &Path) -> Result<(), String> {
     let input_str = input.to_string_lossy().to_string();
     let output_str = output.to_string_lossy().to_string();
     let handle = spawn_sidecar(
@@ -456,6 +457,7 @@ async fn run_ffmpeg_extract(
 async fn collect_json_output(
     mut handle: crate::sidecar::SidecarHandle,
 ) -> Result<serde_json::Value, String> {
+    let pid = handle.child.pid();
     let mut stdout_bytes: Vec<u8> = Vec::new();
     let mut stderr_text = String::new();
     let mut code: Option<i32> = None;
@@ -478,7 +480,8 @@ async fn collect_json_output(
 
     if !matches!(code, Some(0)) {
         return Err(format!(
-            "yt-dlp exited with code {:?}: {}",
+            "yt-dlp process {} exited with code {:?}: {}",
+            pid,
             code,
             stderr_text.trim()
         ));
@@ -487,6 +490,7 @@ async fn collect_json_output(
 }
 
 async fn drain_until_exit(mut handle: crate::sidecar::SidecarHandle) -> Result<(), String> {
+    let pid = handle.child.pid();
     let mut stderr_text = String::new();
     let mut code: Option<i32> = None;
 
@@ -506,7 +510,8 @@ async fn drain_until_exit(mut handle: crate::sidecar::SidecarHandle) -> Result<(
     }
     if !matches!(code, Some(0)) {
         return Err(format!(
-            "sidecar exited with code {:?}: {}",
+            "sidecar process {} exited with code {:?}: {}",
+            pid,
             code,
             stderr_text.trim()
         ));
@@ -703,18 +708,27 @@ pub async fn list_models(_app: AppHandle) -> Result<ModelStatusResponse, String>
 
 #[tauri::command]
 pub async fn resolve_models_dir(app: AppHandle) -> Result<String, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?
-        .join("models");
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let dir = crate::paths::models_dir(&app_data_dir);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.to_string_lossy().to_string())
 }
 
 #[tauri::command]
 pub async fn export_transcript(request: ExportRequest) -> Result<(), String> {
-    std::fs::write(&request.destination, request.content.as_bytes()).map_err(|e| e.to_string())
+    let job_id = request.job_id.trim();
+    if job_id.is_empty() {
+        return Err("Missing job id for transcript export".to_string());
+    }
+    let format = match request.format {
+        ExportFormat::Srt => "SRT",
+        ExportFormat::Txt => "TXT",
+        ExportFormat::Json => "JSON",
+    };
+    std::fs::write(&request.destination, request.content.as_bytes()).map_err(|e| {
+        format!(
+            "Failed to export {} transcript for job {}: {}",
+            format, job_id, e
+        )
+    })
 }
-
-
