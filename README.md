@@ -1,7 +1,5 @@
 # Remedy Transcription
 
-![Remedy Transcription](docs/screenshot.png)
-
 A standalone native desktop app for macOS and Windows that transcribes video and audio locally. Paste a YouTube URL or drop a file; it transcribes on your machine and exports SRT / TXT / JSON.
 
 No server, no Python runtime, and no cloud by default. The whole pipeline — yt-dlp download, ffmpeg extraction, ONNX Whisper inference — runs in-process inside the installed app. An opt-in Google Gemini engine is also available; see [Transcription engines](#transcription-engines) below for the trade it makes.
@@ -131,8 +129,6 @@ In the United States, fair use may permit certain unlicensed uses for teaching, 
 Users and institutions are responsible for determining whether each use is authorized by ownership, license, permission, Creative Commons/public-domain status, fair use, ADA/Section 504 obligations, or another legal basis. Prefer content you own, are licensed to use, or are specifically authorized to download and transcribe. Do not redistribute downloaded media, generated transcripts, or captions unless you have the right to do so.
 
 ## Architecture
-
-See [CLAUDE.md](./CLAUDE.md) for the full breakdown.
 
 ```
 React webview ←─Tauri IPC─→ Rust core ──spawn──> yt-dlp + ffmpeg
